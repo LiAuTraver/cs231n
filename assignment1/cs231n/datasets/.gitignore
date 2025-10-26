@@ -1,0 +1,3 @@
+cifar*
+imagenet*
+!get_datasets.sh
