@@ -66,9 +66,9 @@ class LinearClassifier(object):
       # Hint: Use np.random.choice to generate indices. Sampling with         #
       # replacement is faster than sampling without replacement.              #
       #########################################################################
-
-      X_batch = X[np.random.choice(num_train, batch_size)]
-      y_batch = y[np.random.choice(num_train, batch_size)]
+      indices = np.random.choice(num_train, batch_size)
+      X_batch = X[indices]
+      y_batch = y[indices]
 
       # evaluate loss and gradient
       loss, grad = self.loss(X_batch, y_batch, reg)
@@ -132,7 +132,7 @@ class LinearClassifier(object):
     """Save model parameters."""
     fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
     params = {"W": self.W}
-    np.save(fpath, params)
+    np.save(fpath, params)  # type: ignore
     print(fname, "saved.")
 
   def load(self, fname):
