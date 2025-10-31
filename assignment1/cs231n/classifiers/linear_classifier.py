@@ -87,7 +87,7 @@ class LinearClassifier(object):
 
     return loss_history
 
-  def predict(self, X):
+  def predict(self, X: np.ndarray):
     """
     Use the trained weights of this linear classifier to predict labels for
     data points.
@@ -106,7 +106,7 @@ class LinearClassifier(object):
     # TODO:                                                                   #
     # Implement this method. Store the predicted labels in y_pred.            #
     ###########################################################################
-    res = X.dot(self.W)
+    res = X.dot(self.W)  # type: ignore
     y_pred = np.argmax(res, axis=1)
     return y_pred
 
