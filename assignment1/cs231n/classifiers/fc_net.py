@@ -1,6 +1,7 @@
 from builtins import range
 from builtins import object
 import os
+from typing import Any
 import numpy as np
 
 from ..layers import *
@@ -173,7 +174,7 @@ class FullyConnectedNet(object):
       normalization=None,
       reg=0.0,
       weight_scale=1e-2,
-      dtype=np.float32,
+      dtype=None,
       seed=None,
   ):
     """Initialize a new FullyConnectedNet.
@@ -188,7 +189,8 @@ class FullyConnectedNet(object):
         are "batchnorm", "layernorm", or None for no normalization (the default).
     - reg: Scalar giving L2 regularization strength.
     - weight_scale: Scalar giving the standard deviation for random
-        initialization of the weights.
+        initialization of the weights. The learning would be slow if
+        weight_scale is too small, and unstable if weight_scale is too large.
     - dtype: A numpy datatype object; all computations will be performed using
         this datatype. float32 is faster but less accurate, so you should use
         float64 for numeric gradient checking.
@@ -199,8 +201,8 @@ class FullyConnectedNet(object):
     self.use_dropout = dropout_keep_ratio != 1
     self.reg = reg
     self.num_layers = 1 + len(hidden_dims)
-    self.dtype = dtype
-    self.params = {}
+    self.dtype = dtype if dtype is not None else np.float32
+    self.params: dict[str, Any] = {}
 
     ############################################################################
     # TODO: Initialize the parameters of the network, storing all values in    #
@@ -214,6 +216,25 @@ class FullyConnectedNet(object):
     # beta2, etc. Scale parameters should be initialized to ones and shift     #
     # parameters should be initialized to zeros.                               #
     ############################################################################
+
+    # impl architecture:
+    # {affine → [batchnorm] → relu → [dropout]} × (L-1) → affine → softmax
+
+    for layer in range(self.num_layers - 1):
+      # randomly initialize weights
+      self.params['W' + str(layer + 1)] = np.random.normal(.0, weight_scale, (
+        input_dim if layer == 0 else hidden_dims[layer - 1], hidden_dims[layer]))
+      # zero biases
+      self.params['b' + str(layer + 1)] = np.zeros(hidden_dims[layer])
+
+      if self.normalization in ['batchnorm', 'layernorm']:
+        self.params['gamma' + str(layer + 1)] = np.ones(hidden_dims[layer])
+        self.params['beta' + str(layer + 1)] = np.zeros(hidden_dims[layer])
+
+    # initialize the last layer
+    self.params['W' + str(self.num_layers)] = np.random.normal(
+        .0, weight_scale, (hidden_dims[-1], num_classes))
+    self.params['b' + str(self.num_layers)] = np.zeros(num_classes)
 
     ############################################################################
     #                             END OF YOUR CODE                             #
@@ -235,9 +256,9 @@ class FullyConnectedNet(object):
     # pass of the second batch normalization layer, etc.
     self.bn_params = []
     if self.normalization == "batchnorm":
-      self.bn_params = [{"mode": "train"} for i in range(self.num_layers - 1)]
+      self.bn_params = [{"mode": "train"} for _ in range(self.num_layers - 1)]
     if self.normalization == "layernorm":
-      self.bn_params = [{} for i in range(self.num_layers - 1)]
+      self.bn_params = [{} for _ in range(self.num_layers - 1)]
 
     # Cast all parameters to the correct datatype.
     for k, v in self.params.items():
@@ -271,7 +292,7 @@ class FullyConnectedNet(object):
     if self.normalization == "batchnorm":
       for bn_param in self.bn_params:
         bn_param["mode"] = mode
-    scores = None
+
     ############################################################################
     # TODO: Implement the forward pass for the fully connected net, computing  #
     # the class scores for X and storing them in the scores variable.          #
@@ -284,6 +305,22 @@ class FullyConnectedNet(object):
     # self.bn_params[1] to the forward pass for the second batch normalization #
     # layer, etc.                                                              #
     ############################################################################
+
+    layer_input = X
+    cache_list = []
+    for layer in range(self.num_layers - 1):
+      # lets ignore normalization and dropout for now
+      layer_input, cache = affine_relu_forward(
+          layer_input,
+          self.params['W' + str(layer + 1)],
+          self.params['b' + str(layer + 1)]
+      )
+      cache_list.append(cache)
+    scores, out_cache = affine_forward(
+        layer_input,
+        self.params['W' + str(self.num_layers)],
+        self.params['b' + str(self.num_layers)]
+    )
 
     ############################################################################
     #                             END OF YOUR CODE                             #
@@ -307,6 +344,25 @@ class FullyConnectedNet(object):
     # automated tests, make sure that your L2 regularization includes a factor #
     # of 0.5 to simplify the expression for the gradient.                      #
     ############################################################################
+
+    # same, ignore dropout and normalization for now
+    loss, dscores = softmax_loss(scores, y)  # type: ignore
+    # add regularization
+    for layer in range(self.num_layers):
+      loss += 0.5 * self.reg * np.sum(
+          np.square(self.params['W' + str(layer + 1)]))
+    # last layer
+    input_gradient, dW, db = affine_backward(dscores, out_cache)
+    grads['W' + str(self.num_layers)] = dW + \
+        self.reg * self.params['W' + str(self.num_layers)]
+    grads['b' + str(self.num_layers)] = db
+    # rest of the layers
+    for layer in reversed(range(self.num_layers - 1)):
+      input_gradient, dW, db = affine_relu_backward(
+          input_gradient, cache_list[layer])
+      grads['W' + str(layer + 1)] = dW + self.reg * \
+          self.params['W' + str(layer + 1)]
+      grads['b' + str(layer + 1)] = db
 
     ############################################################################
     #                             END OF YOUR CODE                             #
