@@ -264,7 +264,7 @@ class FullyConnectedNet(object):
     for k, v in self.params.items():
       self.params[k] = v.astype(dtype)
 
-  def loss(self, X, y=None):
+  def loss(self, X: np.ndarray, y=None):
     """Compute loss and gradient for the fully connected net.
 
     Inputs:
@@ -308,18 +308,68 @@ class FullyConnectedNet(object):
 
     layer_input = X
     cache_list = []
+
+    # for layer in range(self.num_layers - 1):
+    #   # lets ignore normalization and dropout for now
+    #   layer_input, cache = affine_relu_forward(
+    #       layer_input,
+    #       self.params['W' + str(layer + 1)],
+    #       self.params['b' + str(layer + 1)]
+    #   )
+    #   cache_list.append(cache)
+    # ^^^^^^ above is the original code ignoring dropout and normalization
+    # we cannot use those existing function if normalization is enabled
+
+    # normalization handled between affine and relu,
+    # dropout occurs after relu
+    norm_out: np.ndarray
+    norm_cache: dict[str, Any]
     for layer in range(self.num_layers - 1):
-      # lets ignore normalization and dropout for now
-      layer_input, cache = affine_relu_forward(
+      a_out, a_cache = affine_forward(
           layer_input,
           self.params['W' + str(layer + 1)],
-          self.params['b' + str(layer + 1)]
+          self.params['b' + str(layer + 1)],
       )
-      cache_list.append(cache)
+      if self.normalization == 'batchnorm':
+        norm_out, norm_cache = batchnorm_forward(
+            a_out,
+            self.params['gamma' + str(layer + 1)],
+            self.params['beta' + str(layer + 1)],
+            self.bn_params[layer],
+        )  # type: ignore
+      elif self.normalization == 'layernorm':
+        norm_out, norm_cache = layernorm_forward(
+            a_out,
+            self.params['gamma' + str(layer + 1)],
+            self.params['beta' + str(layer + 1)],
+            self.bn_params[layer],
+        )  # type: ignore
+      else:
+        norm_out = a_out
+        norm_cache = {}
+      relu_out, relu_cache = relu_forward(norm_out)
+
+      if self.use_dropout:
+        layer_input, drop_cache = dropout_forward(
+            relu_out,
+            self.dropout_param,
+        )
+      else:
+        layer_input = relu_out
+        drop_cache = {}
+
+      cache_list.append({
+          'affine': a_cache,
+          'norm': norm_cache,
+          'relu': relu_cache,
+          'dropout': drop_cache,
+      })
+
+    # last layer(I admit I almost forgot this)
     scores, out_cache = affine_forward(
         layer_input,
         self.params['W' + str(self.num_layers)],
-        self.params['b' + str(self.num_layers)]
+        self.params['b' + str(self.num_layers)],
     )
 
     ############################################################################
@@ -345,7 +395,6 @@ class FullyConnectedNet(object):
     # of 0.5 to simplify the expression for the gradient.                      #
     ############################################################################
 
-    # same, ignore dropout and normalization for now
     loss, dscores = softmax_loss(scores, y)  # type: ignore
     # add regularization
     for layer in range(self.num_layers):
@@ -356,10 +405,49 @@ class FullyConnectedNet(object):
     grads['W' + str(self.num_layers)] = dW + \
         self.reg * self.params['W' + str(self.num_layers)]
     grads['b' + str(self.num_layers)] = db
-    # rest of the layers
+
+    # # same, ignore dropout and normalization for now
+    # # rest of the layers
+    # for layer in reversed(range(self.num_layers - 1)):
+    #   input_gradient, dW, db = affine_relu_backward(
+    #       input_gradient, cache_list[layer])
+    #   grads['W' + str(layer + 1)] = dW + self.reg * \
+    #       self.params['W' + str(layer + 1)]
+    #   grads['b' + str(layer + 1)] = db
+
     for layer in reversed(range(self.num_layers - 1)):
-      input_gradient, dW, db = affine_relu_backward(
-          input_gradient, cache_list[layer])
+      cache = cache_list[layer]
+      # dropout backward
+      if self.use_dropout:
+        input_gradient = dropout_backward(
+            input_gradient,
+            cache['dropout'],
+        )
+      # relu backward
+      input_gradient = relu_backward(
+          input_gradient,  # type: ignore
+          cache['relu'],
+      )
+      # normalization backward
+      if self.normalization == 'batchnorm':
+        input_gradient, dgamma, dbeta = batchnorm_backward(
+            input_gradient,
+            cache['norm'],
+        )
+        grads['gamma' + str(layer + 1)] = dgamma
+        grads['beta' + str(layer + 1)] = dbeta
+      elif self.normalization == 'layernorm':
+        input_gradient, dgamma, dbeta = layernorm_backward(
+            input_gradient,
+            cache['norm'],
+        )
+        grads['gamma' + str(layer + 1)] = dgamma
+        grads['beta' + str(layer + 1)] = dbeta
+      # affine backward
+      input_gradient, dW, db = affine_backward(
+          input_gradient,
+          cache['affine'],
+      )
       grads['W' + str(layer + 1)] = dW + self.reg * \
           self.params['W' + str(layer + 1)]
       grads['b' + str(layer + 1)] = db

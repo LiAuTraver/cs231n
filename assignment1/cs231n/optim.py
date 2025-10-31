@@ -112,7 +112,7 @@ def rmsprop(w, dw, config=None):
   # the data stored in `cache` is actually E[g^2] in his slides, i.e., mean of squared gradients.
   config["cache"] = config["decay_rate"] * config["cache"] + \
       (1 - config["decay_rate"]) * (dw ** 2)
-  adjusted_gradient = dw / (np.sqrt(config["cache"]) + config["epsilon"])
+  adjusted_gradient = dw / (np.sqrt(config["cache"] + config["epsilon"]))
   next_w = w - config["learning_rate"] * adjusted_gradient
 
   ###########################################################################
