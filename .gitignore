@@ -1,1 +1,7 @@
 __pycache__
+submissions/
+build/
+cifar*
+imagenet*
+coco_caption*
+**/im2col_cython.*
