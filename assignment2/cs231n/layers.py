@@ -537,7 +537,31 @@ def dropout_backward(dout: np.ndarray, cache: tuple):
   return dx  # type: ignore
 
 
-def conv_forward_naive(x, w, b, conv_param):
+def get_nums(x: np.ndarray, w: np.ndarray, conv_param: dict)\
+        -> tuple[int, int, int, int, int, int, int, int, int, int, int]:
+  N: int = x.shape[0]
+  C_IN: int = x.shape[1]
+  H: int = x.shape[2]
+  W: int = x.shape[3]
+  C_OUT: int = w.shape[0]
+  assert C_IN == w.shape[1]
+  KH: int = w.shape[2]
+  KW: int = w.shape[3]
+
+  PAD: int = int(conv_param['pad'])
+  STRIDE: int = int(conv_param['stride'])
+
+  H_OUT = (H + 2 * PAD - KH) / STRIDE + 1
+  W_OUT = (W + 2 * PAD - KW) / STRIDE + 1
+  assert int(H_OUT) == H_OUT and int(W_OUT) == W_OUT
+
+  H_OUT = int(H_OUT)
+  W_OUT = int(W_OUT)
+
+  return N, C_IN, H, W, C_OUT, KH, KW, H_OUT, W_OUT, PAD, STRIDE
+
+
+def conv_forward_naive(x: np.ndarray, w: np.ndarray, b: np.ndarray, conv_param: dict):
   """A naive implementation of the forward pass for a convolutional layer.
 
   The input consists of N data points, each with C channels, height H and
@@ -563,20 +587,40 @@ def conv_forward_naive(x, w, b, conv_param):
     W' = 1 + (W + 2 * pad - WW) / stride
   - cache: (x, w, b, conv_param)
   """
-  out = None
   ###########################################################################
   # TODO: Implement the convolutional forward pass.                         #
   # Hint: you can use the function np.pad for padding.                      #
   ###########################################################################
-  #
+  # based on my lecture notes(notation differs from the notes above)
+  N, C_IN, H, W, C_OUT, KH, KW, H_OUT, W_OUT, PAD, STRIDE \
+      = get_nums(x, w, conv_param)
+  out = np.zeros((N, C_OUT, int(H_OUT), int(W_OUT)), dtype=x.dtype)
+
+  def i2ipad(n: int, c: int, i: int, j: int) -> float:
+    if PAD <= i and i < H + PAD and PAD <= j and j < W + PAD:
+      return x[n, c, i - PAD, j - PAD]
+    else:
+      return 0
+
+  for n in range(N):
+    for cout in range(C_OUT):
+      for h in range(int(H_OUT)):
+        for w_idx in range(int(W_OUT)):
+          prod = .0
+          for cin in range(C_IN):
+            for kh in range(KH):
+              for kw in range(KW):
+                prod += i2ipad(n, cin, h * STRIDE + kh,
+                               w_idx * STRIDE + kw) * w[cout, cin, kh, kw]
+          out[n, cout, h, w_idx] = prod + b[cout]
   ###########################################################################
   #                             END OF YOUR CODE                            #
   ###########################################################################
-  cache = (x, w, b, conv_param)
+  cache: tuple = (x, w, b, conv_param)
   return out, cache
 
 
-def conv_backward_naive(dout, cache):
+def conv_backward_naive(dout: np.ndarray, cache: tuple):
   """A naive implementation of the backward pass for a convolutional layer.
 
   Inputs:
@@ -588,11 +632,54 @@ def conv_backward_naive(dout, cache):
   - dw: Gradient with respect to w
   - db: Gradient with respect to b
   """
-  dx, dw, db = None, None, None
   ###########################################################################
   # TODO: Implement the convolutional backward pass.                        #
   ###########################################################################
-  #
+  x, w, b, conv_param = cache
+  N, C_IN, H, W, C_OUT, KH, KW, H_OUT, W_OUT, PAD, STRIDE \
+      = get_nums(x, w, conv_param)
+
+  db = np.zeros(b.shape)
+  for cout in range(C_OUT):
+    for n in range(N):
+      for h in range(H_OUT):
+        for w_idx in range(W_OUT):
+          db[cout] += dout[n, cout, h, w_idx]
+
+  def i2ipad(n: int, c: int, i: int, j: int) -> float:
+    if PAD <= i and i < H + PAD and PAD <= j and j < W + PAD:
+      return x[n, c, i - PAD, j - PAD]
+    else:
+      return 0
+
+  dw = np.zeros(w.shape)
+  for cout in range(C_OUT):
+    for cin in range(C_IN):
+      for kh in range(KH):
+        for kw in range(KW):
+          for n in range(N):
+            for h in range(H_OUT):
+              for w_idx in range(W_OUT):
+                h_start = h * STRIDE
+                w_start = w_idx * STRIDE
+                dw[cout, cin, kh, kw] += i2ipad(n, cin, h_start +
+                                                kh, w_start + kw) * dout[n, cout, h, w_idx]
+
+  # compute padded dx, then unpad
+  dx_padded = np.zeros((N, C_IN, H + 2 * PAD, W + 2 * PAD), dtype=x.dtype)
+
+  for n in range(N):
+    for cout in range(C_OUT):
+      for h_out in range(H_OUT):
+        for w_out in range(W_OUT):
+          h_start = h_out * STRIDE
+          w_start = w_out * STRIDE
+          # w[cout] shape: (C_IN, KH, KW), broadcasting works!
+          dx_padded[n, :, h_start:h_start + KH, w_start:w_start + KW] += \
+              dout[n, cout, h_out, w_out] * w[cout]
+
+  # dx shape (N, C_IN, H, W)
+  dx = dx_padded[:, :, PAD:PAD + H, PAD:PAD + W]
   ###########################################################################
   #                             END OF YOUR CODE                            #
   ###########################################################################
