@@ -119,7 +119,7 @@ def relu_backward(dout, cache):
   return dx
 
 
-def softmax_loss(x, y):
+def softmax_loss(x: np.ndarray, y: np.ndarray):
   """Computes the loss and gradient for softmax classification.
 
   Inputs:
@@ -132,16 +132,14 @@ def softmax_loss(x, y):
   - loss: Scalar giving the loss
   - dx: Gradient of the loss with respect to x
   """
-  loss, dx = None, None
-
   ###########################################################################
   # TODO: Copy over your solution from Assignment 1.                        #
   ###########################################################################
   exp_scores = np.exp(x - np.max(x, axis=1, keepdims=True))
   p = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
-  loss = -np.sum(np.log(p[np.arange(x.shape[0]), y])) / x.shape[0]
+  loss: float = -np.sum(np.log(p[np.arange(x.shape[0]), y])) / x.shape[0]
 
-  dx = p
+  dx: np.ndarray = p
   dx[np.arange(x.shape[0]), y] -= 1
   dx /= x.shape[0]
   ###########################################################################
@@ -537,12 +535,59 @@ def dropout_backward(dout: np.ndarray, cache: tuple):
   return dx  # type: ignore
 
 
-def get_nums(x: np.ndarray, w: np.ndarray, conv_param: dict)\
-        -> tuple[int, int, int, int, int, int, int, int, int, int, int]:
+def get_x_shapes(x: np.ndarray) -> tuple[int, int, int, int]:
+  """
+  Helper function to extract shapes from input x. 
+  USEFUL FOR SYNTAX HIGHLIGHTING.
+
+  Returns N, C_IN, H, W.
+
+  Inputs:
+  - x: Input data of shape (N, C, H, W)
+
+  Returns:
+  - N: batch size
+  - C_IN: number of channels
+  - H: height
+  - W: width
+  """
   N: int = x.shape[0]
   C_IN: int = x.shape[1]
   H: int = x.shape[2]
   W: int = x.shape[3]
+  return N, C_IN, H, W
+
+
+def extract_conv_params(x: np.ndarray, w: np.ndarray, conv_param: dict)\
+        -> tuple[int, int, int, int, int, int, int, int, int, int, int]:
+  """
+  Helper function to extract convolution parameters from inputs. 
+  USEFUL FOR SYNTAX HIGHLIGHTING.
+
+  Returns N, C_IN, H, W, C_OUT, KH, KW, H_OUT, W_OUT, PAD, STRIDE
+
+  Inputs:
+  - x: Input data of shape (N, C, H, W)
+  - w: Filter weights of shape (F, C, HH, WW)
+  - conv_param: A dictionary with the following keys:
+    - 'stride': The number of pixels between adjacent receptive fields in the
+      horizontal and vertical directions.
+    - 'pad': The number of pixels that will be used to zero-pad the input.
+
+  Returns:
+  - N: batch size
+  - C_IN: number of channels
+  - H: height
+  - W: width
+  - C_OUT: number of filters
+  - KH: filter height
+  - KW: filter width
+  - H_OUT: output height
+  - W_OUT: output width
+  - PAD: padding
+  - STRIDE: stride
+  """
+  N, C_IN, H, W = get_x_shapes(x)
   C_OUT: int = w.shape[0]
   assert C_IN == w.shape[1]
   KH: int = w.shape[2]
@@ -593,7 +638,7 @@ def conv_forward_naive(x: np.ndarray, w: np.ndarray, b: np.ndarray, conv_param: 
   ###########################################################################
   # based on my lecture notes(notation differs from the notes above)
   N, C_IN, H, W, C_OUT, KH, KW, H_OUT, W_OUT, PAD, STRIDE \
-      = get_nums(x, w, conv_param)
+      = extract_conv_params(x, w, conv_param)
   out = np.zeros((N, C_OUT, int(H_OUT), int(W_OUT)), dtype=x.dtype)
 
   def i2ipad(n: int, c: int, i: int, j: int) -> float:
@@ -637,7 +682,7 @@ def conv_backward_naive(dout: np.ndarray, cache: tuple):
   ###########################################################################
   x, w, b, conv_param = cache
   N, C_IN, H, W, C_OUT, KH, KW, H_OUT, W_OUT, PAD, STRIDE \
-      = get_nums(x, w, conv_param)
+      = extract_conv_params(x, w, conv_param)
 
   db = np.zeros(b.shape)
   for cout in range(C_OUT):
@@ -686,7 +731,7 @@ def conv_backward_naive(dout: np.ndarray, cache: tuple):
   return dx, dw, db
 
 
-def max_pool_forward_naive(x, pool_param):
+def max_pool_forward_naive(x: np.ndarray, pool_param: dict):
   """A naive implementation of the forward pass for a max-pooling layer.
 
   Inputs:
@@ -706,11 +751,36 @@ def max_pool_forward_naive(x, pool_param):
     W' = 1 + (W - pool_width) / stride
   - cache: (x, pool_param)
   """
-  out = None
   ###########################################################################
   # TODO: Implement the max-pooling forward pass                            #
   ###########################################################################
-  #
+  N, C_IN, H, W = get_x_shapes(x)
+
+  POOL_HEIGHT = int(pool_param['pool_height'])
+  POOL_WIDTH = int(pool_param['pool_width'])
+  STRIDE = int(pool_param['stride'])
+
+  H_OUT = (H - POOL_HEIGHT) / STRIDE + 1
+  W_OUT = (W - POOL_WIDTH) / STRIDE + 1
+
+  assert int(H_OUT) == H_OUT and int(W_OUT) == W_OUT
+
+  H_OUT = int(H_OUT)
+  W_OUT = int(W_OUT)
+
+  out: np.ndarray = np.zeros((N, C_IN, H_OUT, W_OUT))
+
+  for n in range(N):
+    for cin in range(C_IN):
+      for hout in range(H_OUT):
+        for wout in range(W_OUT):
+          h_start = hout * STRIDE
+          w_start = wout * STRIDE
+          h_end = h_start + POOL_HEIGHT
+          w_end = w_start + POOL_WIDTH
+          out[n, cin, hout, wout] = np.max(
+            x[n, cin, h_start:h_end, w_start:w_end])
+
   ###########################################################################
   #                             END OF YOUR CODE                            #
   ###########################################################################
@@ -718,7 +788,7 @@ def max_pool_forward_naive(x, pool_param):
   return out, cache
 
 
-def max_pool_backward_naive(dout, cache):
+def max_pool_backward_naive(dout: np.ndarray, cache: tuple):
   """A naive implementation of the backward pass for a max-pooling layer.
 
   Inputs:
@@ -728,18 +798,50 @@ def max_pool_backward_naive(dout, cache):
   Returns:
   - dx: Gradient with respect to x
   """
-  dx = None
   ###########################################################################
   # TODO: Implement the max-pooling backward pass                           #
   ###########################################################################
-  #
-  ###########################################################################
-  #                             END OF YOUR CODE                            #
-  ###########################################################################
+  x: np.ndarray
+  pool_param: dict
+  x, pool_param = cache
+
+  N, C_IN, H, W = get_x_shapes(x)
+
+  POOL_HEIGHT = int(pool_param['pool_height'])
+  POOL_WIDTH = int(pool_param['pool_width'])
+  STRIDE = int(pool_param['stride'])
+
+  H_OUT = (H - POOL_HEIGHT) / STRIDE + 1
+  W_OUT = (W - POOL_WIDTH) / STRIDE + 1
+
+  assert int(H_OUT) == H_OUT and int(W_OUT) == W_OUT
+
+  H_OUT = int(H_OUT)
+  W_OUT = int(W_OUT)
+  dx = np.zeros((N, C_IN, H, W))
+
+  for n in range(N):
+    for cin in range(C_IN):
+      for hout in range(H_OUT):
+        for wout in range(W_OUT):
+          h_start = hout * STRIDE
+          w_start = wout * STRIDE
+          h_end = h_start + POOL_HEIGHT
+          w_end = w_start + POOL_WIDTH
+          pooling_window = x[n, cin, h_start:h_end, w_start:w_end]
+          mask = (pooling_window == np.max(pooling_window))
+          # `+=` may not be necessary if not overlapping,
+          # also if multiple max, both are considered valid and get non-zero derivatives.
+          dx[n, cin, h_start:h_end, w_start:w_end] += dout[n, cin, hout, wout] * mask
+
+
+###########################################################################
+#                             END OF YOUR CODE                            #
+###########################################################################
   return dx
 
 
-def spatial_batchnorm_forward(x, gamma, beta, bn_param):
+def spatial_batchnorm_forward(x: np.ndarray, gamma: np.ndarray, beta: np.ndarray, bn_param: dict):
   """Computes the forward pass for spatial batch normalization.
 
   Inputs:
@@ -760,7 +862,6 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
   - out: Output data, of shape (N, C, H, W)
   - cache: Values needed for the backward pass
   """
-  out, cache = None, None
 
   ###########################################################################
   # TODO: Implement the forward pass for spatial batch normalization.       #
@@ -769,7 +870,10 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
   # vanilla version of batch normalization you implemented above.           #
   # Your implementation should be very short; ours is less than five lines. #
   ###########################################################################
-  #
+  N, C_IN, H, W = get_x_shapes(x)
+  out, cache = batchnorm_forward(
+    x.reshape((N * H * W, C_IN)), gamma, beta, bn_param)
+  out = out.reshape((N, C_IN, H, W))
   ###########################################################################
   #                             END OF YOUR CODE                            #
   ###########################################################################
@@ -777,7 +881,7 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
   return out, cache
 
 
-def spatial_batchnorm_backward(dout, cache):
+def spatial_batchnorm_backward(dout: np.ndarray, cache: dict):
   """Computes the backward pass for spatial batch normalization.
 
   Inputs:
@@ -789,7 +893,6 @@ def spatial_batchnorm_backward(dout, cache):
   - dgamma: Gradient with respect to scale parameter, of shape (C,)
   - dbeta: Gradient with respect to shift parameter, of shape (C,)
   """
-  dx, dgamma, dbeta = None, None, None
 
   ###########################################################################
   # TODO: Implement the backward pass for spatial batch normalization.      #
@@ -798,7 +901,10 @@ def spatial_batchnorm_backward(dout, cache):
   # vanilla version of batch normalization you implemented above.           #
   # Your implementation should be very short; ours is less than five lines. #
   ###########################################################################
-  #
+  N, C, H, W = get_x_shapes(dout)
+  dx, dgamma, dbeta = batchnorm_backward(
+    dout.reshape((N * H * W, C)), cache)
+  dx = dx.reshape(N, C, H, W)
   ###########################################################################
   #                             END OF YOUR CODE                            #
   ###########################################################################

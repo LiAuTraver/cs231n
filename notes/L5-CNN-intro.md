@@ -1,6 +1,6 @@
 # Lecture 5: Convolutional Neural Networks
 
-## Convolutional layers
+### Convolutional layers
 
 - Input tensor: (Channels, Height, Width) = $(C_{in}, H, W)$, Batch of images:  
   $$\text{shape}(\mathbf{I}) = (N, C_{in}, H, W)$$
@@ -29,9 +29,9 @@
 
 - stride: as the network deepens, the receptive field increases. Using a stride $S > 1$ downsamples the input and further increases the receptive field exponentially(and may also reduce depths and computational cost).
 
-## Strict mathematical definition
+### Strict mathematical definition
 
-### Forward pass
+#### Forward pass
 
 Let
 
@@ -97,7 +97,7 @@ $$
 
 > note: assumes zero-based indexing and padding value is 0, and bias is added per output channel and broadcast across spatial positions and batch.
 
-### Backward pass
+#### Backward pass
 
 Let the scalar loss be $L$. Let the upstream gradient be
 
@@ -107,7 +107,7 @@ $$
 
 We return gradients for bias $\mathbf{B}$, filters $\mathbf{F}$, and input $\mathbf{I}$. Keep $P$, $S$ and the padded input $\mathbf{I}_{pad}$ as defined above.
 
-#### Gradient w.r.t. bias
+##### Gradient w.r.t. bias
 
 Bias is added per output channel and broadcast over batch and spatial positions, therefore:
 
@@ -119,7 +119,7 @@ $$
 
 with shape $\mathbb{R}^{C_{\text{out}}}$.
 
-#### Gradient w.r.t. filters
+##### Gradient w.r.t. filters
 
 Each filter element multiplies a corresponding window of the padded input in the forward pass, so
 
@@ -131,7 +131,7 @@ $$
 
 with shape $\mathbb{R}^{C_{\text{out}} \times C_{\text{in}} \times K_h \times K_w}$.
 
-#### Gradient w.r.t. padded input
+##### Gradient w.r.t. padded input
 
 A given element of $\mathbf{I}_{pad}[n, c_{in}, u, v]$ contributes to every output $\mathbf{O}[n, c_{out}, h, w]$ whose receptive field includes $(u, v)$. Equivalently:
 
@@ -143,12 +143,63 @@ $$
 
 where $\mathbf{1}_{condition}$ is an indicator function that is 1 if the condition is true and 0 otherwise, with shape $\mathbb{R}^{N \times C_{in} \times (H + 2P) \times (W + 2P)}$.
 
-#### Gradient w.r.t. input
+##### Gradient w.r.t. input
 
 After removing padding, the gradient on the original input is the central slice of the padded-input gradient.
 
 $$
 \boxed{
 \frac{\partial L}{\partial \mathbf{I}[n, c_{in}, x, y]} = \frac{\partial L}{\partial \mathbf{I}_{pad}[n, c_{in}, x + P, y + P]}, \quad x \in \{0, \ldots, H-1\}, \; y \in \{0, \ldots, W-1\}.
+}
+$$
+
+### Pooling - Another way to downsample the feature map
+
+**Max Pooling**: for each non-overlapping $p \times p$ region, take the maximum value. (most common)
+
+###### Stride?
+
+for max pooling usually equals the pooling size to avoid overlapping regions.
+
+###### Padding
+
+usually no padding for max pooling, it's no use to add zeros around the border.
+
+###### ReLU
+
+Conbine max pooling with ReLU is redundant, since most often they both output non-negative values; max pooling is non-linear itself; however suppose we use average pooling, which is linear, then ReLU is still useful.
+
+### Math - A simple pooling without padding
+
+Let input be
+
+$$
+\mathbf{I} \in \mathbb{R}^{N \times C \times H \times W}
+$$
+
+Set hyperparameters:
+
+- Kernel size(of pooling): $K$
+- Stride: $S$
+- Pooling function: $f: \mathbb{R}^{K \times K} \rightarrow \mathbb{R}$ (e.g., max, average)
+
+> Note: no learnable parameters here.
+
+The the size of output is
+
+$$
+\begin{aligned}
+H_{out} & = \frac{H - K}{S} + 1 \\
+W_{out} & = \frac{W - K}{S} + 1
+\end{aligned}
+$$
+
+_assuming these are integers._
+
+Output is
+
+$$
+\boxed{
+\mathbf{O}[n, c, h, w] = f(\mathbf{I}[n, c, h_{start}:h_{end}, w_{start}:w_{end}])
 }
 $$

@@ -1,5 +1,5 @@
-from distutils.core import setup
-from distutils.extension import Extension
+from distutils.core import setup  # type: ignore
+from distutils.extension import Extension  # type: ignore
 from Cython.Build import cythonize
 import numpy
 
