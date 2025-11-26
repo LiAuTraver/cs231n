@@ -203,3 +203,109 @@ $$
 \mathbf{O}[n, c, h, w] = f(\mathbf{I}[n, c, h_{start}:h_{end}, w_{start}:w_{end}])
 }
 $$
+
+### Normalization
+
+also helps with training deep networks, avoid gradient vanishing and exploding.
+
+#### Batch Normalization
+
+normalize activations across the batch dimension.(i.e., for $N$ examples, compute mean and variance across them for each feature channel $C$)
+
+#### Layer Normalization
+
+normalize activations across the feature channel dimension. For each example, compute mean and variance across all feature channels.
+
+#### Group Normalization
+
+normalize activations across groups of feature channels. Divide the feature channels into groups and compute mean and variance within each group for each example: divide $C$ channels into $G$ groups, each group has $C/G$ channels, _assume $C$ is divisible by $G$._ I view it as an improvement over Layer Normalization.
+
+#### formula - Batch Normalization as example
+
+Let input be
+
+$$
+\mathbf{I} \in \mathbb{R}^{N \times C \times H \times W}
+$$
+
+Set hyperparameters:
+
+- Momentum for running mean/variance: $\mu \in [0, 1)$
+- Small constant for numerical stability: $\epsilon > 0$
+- Learnable scale parameter: $\gamma \in \mathbb{R}^{C}$
+- Learnable shift parameter: $\beta \in \mathbb{R}^{C}$
+
+##### Forward pass
+
+During training, compute mean and variance for each channel across the batch and spatial dimensions(that is, keep data in $C$ dimension unchanged):
+
+$$
+\begin{aligned}
+\mu_c & = \frac{1}{N \cdot H \cdot W} \sum_{n=0}^{N-1} \sum_{h=0}^{H-1} \sum_{w=0}^{W-1} \mathbf{I}[n, c, h, w] \\
+\sigma_c^2 & = \frac{1}{N \cdot H \cdot W} \sum_{n=0}^{N-1} \sum_{h=0}^{H-1} \sum_{w=0}^{W-1} (\mathbf{I}[n, c, h, w] - \mu_c)^2
+\end{aligned}
+$$
+
+Then normalize the input:
+
+$$
+\mathbf{\hat{I}}[n, c, h, w] = \frac{\mathbf{I}[n, c, h, w] - \mu_c}{\sqrt{\sigma_c^2 + \epsilon}}
+$$
+
+Finally, scale and shift:
+
+$$
+\mathbf{O}[n, c, h, w] = \gamma[c] \cdot \mathbf{\hat{I}}[n, c, h, w] + \beta[c]
+$$
+
+During testing, use running averages of mean and variance computed during training for normalization.
+
+##### Backward pass
+
+Let the scalar loss be $L$. Let the upstream gradient be
+
+$$
+\mathbf{G} = \frac{\partial L}{\partial \mathbf{O}} \in \mathbb{R}^{N \times C \times H \times W}.
+$$
+
+We return gradients for input $\mathbf{I}$, scale parameter $\gamma$, and shift parameter $\beta$.
+
+###### Gradient w.r.t. shift parameter
+
+$$
+\boxed{
+\frac{\partial L}{\partial \beta[c]} = \sum_{n=0}^{N-1} \sum_{h=0}^{H-1} \sum_{w=0}^{W-1} \mathbf{G}[n, c, h, w].
+}
+$$
+
+with shape $\mathbb{R}^{C}$.
+
+###### Gradient w.r.t. scale parameter
+
+$$
+\boxed{
+\frac{\partial L}{\partial \gamma[c]} = \sum_{n=0}^{N-1} \sum_{h=0}^{H-1} \sum_{w=0}^{W-1} \mathbf{G}[n, c, h, w] \cdot \mathbf{\hat{I}}[n, c, h, w].
+}
+$$
+
+with shape $\mathbb{R}^{C}$.
+
+###### Gradient w.r.t. input
+
+$$
+\boxed{
+\frac{\partial L}{\partial \mathbf{I}[n, c, h, w]} = \frac{\gamma[c]}{\sqrt{\sigma_c^2 + \epsilon}} \left( \mathbf{G}[n, c, h, w] - \frac{1}{m}\bar{G}_c - \frac{1}{m}\mathbf{\hat{I}}[n, c, h, w]\bar{G'}_c \right)
+}
+
+
+$$
+
+where
+
+$$
+\begin{aligned}
+m & = N \cdot H \cdot W \\
+\bar{G}_c &= \sum_{n,h,w} \mathbf{G}[n, c, h, w] \\
+\bar{G'}_c &= \sum_{n,h,w} \mathbf{G}[n, c, h, w] \cdot \mathbf{\hat{I}}[n, c, h, w]
+\end{aligned}
+$$

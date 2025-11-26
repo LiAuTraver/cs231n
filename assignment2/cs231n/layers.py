@@ -334,6 +334,7 @@ def batchnorm_backward_alt(dout: np.ndarray, cache: dict):
   # should be able to compute gradients with respect to the inputs in a     #
   # single statement; our implementation fits on a single 80-character line.#
   ###########################################################################
+  # see essay
   N: int = dout.shape[0]
   D: int = dout.shape[1]
 
@@ -870,10 +871,12 @@ def spatial_batchnorm_forward(x: np.ndarray, gamma: np.ndarray, beta: np.ndarray
   # vanilla version of batch normalization you implemented above.           #
   # Your implementation should be very short; ours is less than five lines. #
   ###########################################################################
-  N, C_IN, H, W = get_x_shapes(x)
-  out, cache = batchnorm_forward(
-    x.reshape((N * H * W, C_IN)), gamma, beta, bn_param)
-  out = out.reshape((N, C_IN, H, W))
+  # batchnorm_forward function expects input shape (N_batch, D_features)
+  N_SAMPLE, C, H, W = get_x_shapes(x)
+  # D_features is C_IN (channel in) here (normalization C unchanegd, C == C_IN == C_OUT!)
+  reshaped_x = x.transpose(0, 2, 3, 1).reshape(-1, C)
+  raw_out, cache = batchnorm_forward(reshaped_x, gamma, beta, bn_param)
+  out = raw_out.reshape(N_SAMPLE, H, W, C).transpose(0, 3, 1, 2)
   ###########################################################################
   #                             END OF YOUR CODE                            #
   ###########################################################################
@@ -901,10 +904,12 @@ def spatial_batchnorm_backward(dout: np.ndarray, cache: dict):
   # vanilla version of batch normalization you implemented above.           #
   # Your implementation should be very short; ours is less than five lines. #
   ###########################################################################
-  N, C, H, W = get_x_shapes(dout)
-  dx, dgamma, dbeta = batchnorm_backward(
-    dout.reshape((N * H * W, C)), cache)
-  dx = dx.reshape(N, C, H, W)
+  N_SAMPLE, C, H, W = get_x_shapes(dout)
+  reshaped_dout = dout.transpose(0, 2, 3, 1).reshape(-1, C)
+  raw_dx, dgamma, dbeta = batchnorm_backward(
+    reshaped_dout, cache)
+  dx = raw_dx.reshape(N_SAMPLE, H, W, C).transpose(0, 3, 1, 2)
+
   ###########################################################################
   #                             END OF YOUR CODE                            #
   ###########################################################################
@@ -912,7 +917,7 @@ def spatial_batchnorm_backward(dout: np.ndarray, cache: dict):
   return dx, dgamma, dbeta
 
 
-def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
+def spatial_groupnorm_forward(x: np.ndarray, gamma: np.ndarray, beta: np.ndarray, G: int, gn_param: dict):
   """Computes the forward pass for spatial group normalization.
 
   In contrast to layer normalization, group normalization splits each entry in the data into G
@@ -932,8 +937,7 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
   - out: Output data, of shape (N, C, H, W)
   - cache: Values needed for the backward pass
   """
-  out, cache = None, None
-  eps = gn_param.get("eps", 1e-5)
+  eps: float = gn_param.get("eps", 1e-5)
   ###########################################################################
   # TODO: Implement the forward pass for spatial group normalization.       #
   # This will be extremely similar to the layer norm implementation.        #
@@ -941,14 +945,36 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
   # the bulk of the code is similar to both train-time batch normalization  #
   # and layer normalization!                                                #
   ###########################################################################
-  #
+  N, C, H, W = get_x_shapes(x)
+  GROUP_SIZE = C / G
+  assert GROUP_SIZE == int(GROUP_SIZE)
+  GROUP_SIZE = int(GROUP_SIZE)
+  layers = x.reshape(N, G, GROUP_SIZE, H, W)
+  sample_means: np.ndarray = np.mean(layers, axis=2, keepdims=True)
+  sample_vars: np.ndarray = np.var(layers, axis=2, keepdims=True)
+  sample_stds: np.ndarray = np.sqrt(sample_vars + eps)
+  raw_x_hat: np.ndarray = (layers - sample_means) / sample_stds
+  x_hat: np.ndarray = raw_x_hat.reshape((N, C, H, W))
+  out: np.ndarray = gamma * x_hat + beta
+
+  cache = {}
+  cache['eps'] = eps
+  cache['sample_vars'] = sample_vars
+  cache['sample_means'] = sample_means
+  cache['std'] = sample_stds
+  cache['x_hat'] = x_hat
+  cache['gamma'] = gamma
+  cache['beta'] = beta
+  cache['layers'] = layers
+  cache['x'] = x
+  cache['G'] = G
   ###########################################################################
   #                             END OF YOUR CODE                            #
   ###########################################################################
   return out, cache
 
 
-def spatial_groupnorm_backward(dout, cache):
+def spatial_groupnorm_backward(dout: np.ndarray, cache: dict):
   """Computes the backward pass for spatial group normalization.
 
   Inputs:
@@ -960,13 +986,35 @@ def spatial_groupnorm_backward(dout, cache):
   - dgamma: Gradient with respect to scale parameter, of shape (1, C, 1, 1)
   - dbeta: Gradient with respect to shift parameter, of shape (1, C, 1, 1)
   """
-  dx, dgamma, dbeta = None, None, None
 
   ###########################################################################
   # TODO: Implement the backward pass for spatial group normalization.      #
   # This will be extremely similar to the layer norm implementation.        #
   ###########################################################################
-  #
+  dgamma: np.ndarray = np.sum(
+    cache['x_hat'] * dout, axis=(0, 2, 3), keepdims=True)
+  dbeta: np.ndarray = np.sum(dout, axis=(0, 2, 3), keepdims=True)
+
+  N, C, H, W = get_x_shapes(dout)
+  G: int = cache['G']
+  GROUP_SIZE = C / G
+  assert GROUP_SIZE == int(GROUP_SIZE)
+  GROUP_SIZE = int(GROUP_SIZE)
+
+  layers: np.ndarray = cache['layers']
+  assert layers.shape == (N, G, GROUP_SIZE, H, W)
+
+  draw_x_hat: np.ndarray = dout * cache['gamma']
+  dx_hat: np.ndarray = draw_x_hat.reshape((N, G, GROUP_SIZE, H, W))
+  dvar: np.ndarray = np.sum(
+    dx_hat * (layers - cache['sample_means']) * (-1 / 2) * np.pow(cache['std'], -3), axis=2, keepdims=True)
+  dmiu: np.ndarray = np.sum(dx_hat / (-cache['std']), axis=2, keepdims=True) + \
+      dvar / (GROUP_SIZE) * (-2) * \
+      np.sum((layers - cache['sample_means']), axis=2, keepdims=True)
+  dlayers: np.ndarray = dx_hat / cache['std'] + \
+      dvar * 2 * (layers - cache['sample_means']) / \
+      (GROUP_SIZE) + dmiu / (GROUP_SIZE)
+  dx: np.ndarray = dlayers.reshape((N, C, H, W))
   ###########################################################################
   #                             END OF YOUR CODE                            #
   ###########################################################################
