@@ -62,7 +62,7 @@ def deprocess_image(img, rescale=False):
   return np.clip(255 * img, 0.0, 255.0).astype(np.uint8)
 
 
-def image_from_url(url):
+def image_from_url(url, useProxy=True):
   """
   Read an image from a URL. Returns a numpy array with the pixel data.
   We write the image to a temporary file then read it back. Kinda gross.
@@ -71,13 +71,14 @@ def image_from_url(url):
   Notes: Modified by me to use proxy otherwise cannot download pics.
   """
   # Configure proxy
-  proxy_handler = urllib.request.ProxyHandler({
-    'http': 'http://localhost:10809',
-    'https': 'http://localhost:10809',
-    'socks': 'socks5://localhost:10808'
-  })
-  opener = urllib.request.build_opener(proxy_handler)
-  urllib.request.install_opener(opener)
+  if useProxy:
+    proxy_handler = urllib.request.ProxyHandler({
+      'http': 'http://localhost:10809',
+      'https': 'http://localhost:10809',
+      'socks': 'socks5://localhost:10808'
+    })
+    opener = urllib.request.build_opener(proxy_handler)
+    urllib.request.install_opener(opener)
 
   try:
     f = urllib.request.urlopen(url)
