@@ -5,3 +5,4 @@ cifar*
 imagenet*
 coco_caption*
 **/im2col_cython.*
+*.key
