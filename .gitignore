@@ -6,3 +6,5 @@ imagenet*
 coco_caption*
 **/im2col_cython.*
 *.key
+
+resources/[0-9]*.pdf
