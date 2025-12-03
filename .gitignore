@@ -7,3 +7,5 @@ coco_caption*
 **/im2col_cython.*
 
 resources/[0-9]*.pdf
+
+pretrained_model/
