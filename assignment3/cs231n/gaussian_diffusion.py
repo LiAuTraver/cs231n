@@ -155,7 +155,7 @@ class GaussianDiffusion(torch.nn.Module):
     return posterior_mean, posterior_std
 
   @torch.no_grad()
-  def p_sample(self, x_t, t: int, model_kwargs={}):
+  def p_sample(self, x_t:torch.Tensor, t: int, model_kwargs:dict={}):
     """Sample from p(x_{t-1} | x_t) according to Eq. (6) of the paper. Used only during inference.
     Args:
         x_t: (b, *) tensor. Noisy image.
@@ -166,7 +166,6 @@ class GaussianDiffusion(torch.nn.Module):
     """
     tf = torch.full((x_t.shape[0],), t,
                     device=x_t.device, dtype=torch.long)  # (b,)
-    x_tm1 = None  # sample x_{t-1} from p(x_{t-1} | x_t)
 
     ##################################################################
     # TODO: Implement the sampling step p(x_{t-1} | x_t) according to Eq. (6):
@@ -181,7 +180,20 @@ class GaussianDiffusion(torch.nn.Module):
     #   4. Get the mean and std for q(x_{t-1} | x_t, x_0) using self.q_posterior,
     #      and sample x_{t-1}.
     ##################################################################
+    out = self.model(x_t, tf, model_kwargs)
 
+    if self.objective == "pred_noise":
+      pred_x0 = self.predict_start_from_noise(x_t, tf, out)
+    elif self.objective == "pred_x_start":
+      pred_x0 = out
+    else:
+      raise ValueError(f"unknown objective {self.objective}")
+
+    pred_x0 = torch.clamp(pred_x0, -1.0, 1.0)
+
+    mean, std = self.q_posterior(pred_x0, x_t, tf)
+    noise = torch.randn_like(x_t) if t > 0 else 0.0
+    x_tm1: torch.Tensor = mean + std * noise
     ##################################################################
 
     return x_tm1
@@ -238,8 +250,6 @@ class GaussianDiffusion(torch.nn.Module):
     noise = torch.randn_like(x_start)  # (b, *)
     target = noise if self.objective == "pred_noise" else x_start  # (b, *)
     loss_weight = extract(self.loss_weight, t, target.shape)  # (b, *)
-    loss = None
-
     ####################################################################
     # TODO:
     # Implement the loss function according to Eq. (14) of the paper.
@@ -248,7 +258,9 @@ class GaussianDiffusion(torch.nn.Module):
     # Finally, compute the weighted MSE loss.
     # Approximately 3-4 lines of code.
     ####################################################################
-
+    x_t: torch.Tensor = self.q_sample(x_start, t, noise)
+    out: torch.Tensor = self.model(x_t, t, model_kwargs)
+    loss = torch.mean(loss_weight * (out - target) ** 2)
     ####################################################################
 
     return loss

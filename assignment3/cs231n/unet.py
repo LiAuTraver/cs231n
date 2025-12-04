@@ -220,12 +220,11 @@ class Unet(torch.nn.Module):
 
     # Final convolution to map to the output channels
     self.final_conv = torch.nn.Conv2d(dim, channels, 1)
-
-  def cfg_forward(self, x, time, model_kwargs={}):
+  def cfg_forward(self, x: torch.Tensor, time: torch.Tensor, model_kwargs: dict = {}):
     """Classifier-free guidance forward pass. model_kwargs should contain `cfg_scale`."""
 
     cfg_scale = model_kwargs.pop("cfg_scale")
-    print("Classifier-free guidance scale:", cfg_scale)
+    # print("Classifier-free guidance scale:", cfg_scale)
     model_kwargs = copy.deepcopy(model_kwargs)
 
     ##################################################################
@@ -236,7 +235,14 @@ class Unet(torch.nn.Module):
     # You will have to call self.forward two times.
     # For unconditional sampling, pass None in`text_emb`.
     ##################################################################
-
+    # eps(x_t, cond)
+    # dropped cfg, hence no recursion
+    eps_cond = self.forward(x, time, model_kwargs)
+    # eps(x_t, empty)
+    model_kwargs["text_emb"] = None
+    eps_uncond = self.forward(x, time, model_kwargs)
+    # idfk how, why it works but it looks like this accordign to the paper
+    x = (cfg_scale + 1) * eps_cond - cfg_scale * eps_uncond
     ##################################################################
 
     return x
