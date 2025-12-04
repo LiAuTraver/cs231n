@@ -6,3 +6,4 @@ Documents used in this course. In order to reduce the size of the repository and
 - [Attention Is All You Need](https://arxiv.org/pdf/1706.03762v7)
 - [Group Normalization](https://arxiv.org/pdf/1803.08494v3)
 - [A Simple Framework for Contrastive Learning of Visual Representations](https://arxiv.org/pdf/2002.05709v3)
+- [Denoising Diffusion Probabilistic Models](https://arxiv.org/pdf/2006.11239v2)
