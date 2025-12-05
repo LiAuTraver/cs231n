@@ -110,7 +110,7 @@ class GaussianDiffusion(torch.nn.Module):
     # ^^^ comment was misleading, we only need Eq.(4) here
     x_start: torch.Tensor = (x_t - extract(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * noise) \
         / extract(self.sqrt_alphas_cumprod, t, x_t.shape)
-
+    ####################################################################
     return x_start
 
   def predict_noise_from_start(self, x_t: torch.Tensor, t: torch.Tensor, x_start: torch.Tensor):
@@ -155,7 +155,7 @@ class GaussianDiffusion(torch.nn.Module):
     return posterior_mean, posterior_std
 
   @torch.no_grad()
-  def p_sample(self, x_t:torch.Tensor, t: int, model_kwargs:dict={}):
+  def p_sample(self, x_t: torch.Tensor, t: int, model_kwargs: dict = {}):
     """Sample from p(x_{t-1} | x_t) according to Eq. (6) of the paper. Used only during inference.
     Args:
         x_t: (b, *) tensor. Noisy image.
@@ -241,6 +241,7 @@ class GaussianDiffusion(torch.nn.Module):
     extracted_minus: torch.Tensor = extract(
       self.sqrt_one_minus_alphas_cumprod, t, x_start.shape)
     x_t: torch.Tensor = extracted * x_start + extracted_minus * noise
+    ####################################################################
     return x_t
 
   def p_losses(self, x_start, model_kwargs={}):
