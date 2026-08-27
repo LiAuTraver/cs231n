@@ -37,7 +37,6 @@ class PositionalEncoding(torch.nn.Module):
     ############################################################################
     # unsqueeze(pos) add `1` at pos
     row = torch.arange(0, max_len).unsqueeze(1)  # (max_len, 1)
-    row = torch.arange(0, max_len).unsqueeze(1)  # (max_len, 1)
     div_term = torch.exp(torch.arange(0, embed_dim, 2) *
                          (-torch.log(torch.tensor(10000.0)) / embed_dim))
     pe[0, :, 0::2] = torch.sin(row * div_term)
@@ -50,7 +49,7 @@ class PositionalEncoding(torch.nn.Module):
     # parameters (mostly for completeness).
     self.register_buffer('pe', pe)
 
-  def forward(self, x):
+  def forward(self, x: torch.Tensor):
     """
     Element-wise add positional embeddings to the input sequence.
 
@@ -62,7 +61,6 @@ class PositionalEncoding(torch.nn.Module):
      - output: the input sequence + positional encodings, of shape (N, S, D)
     """
     N, S, D = x.shape
-    # Create a placeholder, to be overwritten by your code below.
     ############################################################################
     # TODO: Index into your array of positional encodings, and add the         #
     # appropriate ones to the input sequence. Don't forget to apply dropout    #
@@ -107,8 +105,7 @@ class MultiHeadAttention(torch.nn.Module):
     # We will initialize these layers for you, since swapping the ordering
     # would affect the random number generation (and therefore your exact
     # outputs relative to the autograder). Note that the layers use a bias
-    # term, but this isn't strictly necessary (and varies by
-    # implementation).
+    # term, but this isn't strictly necessary (and varies by implementation).
     self.key = torch.nn.Linear(embed_dim, embed_dim)
     self.query = torch.nn.Linear(embed_dim, embed_dim)
     self.value = torch.nn.Linear(embed_dim, embed_dim)
@@ -178,9 +175,9 @@ class MultiHeadAttention(torch.nn.Module):
 
     # masking
     if attn_mask is not None:
-      # FIXME: masked attention failed!
-      if attn_mask.dim() == 2:  # this is Gemini provided but no use seems
-        # Ensure mask is broadcastable to (N, H, S, T)
+      if attn_mask.dim() == 2:
+        # line below was provided by Gemini -- vvv Cuz idk how to broadcast it correctly and maybe this is the correct way.
+        # ensure mask is broadcastable to (N, H, S, T)
         attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
       alpha = alpha.masked_fill(attn_mask == 0, float('-inf'))
 
@@ -326,7 +323,7 @@ class PatchEmbedding(torch.nn.Module):
   - embed_dim: Dimension of the linear embedding space.
   """
 
-  def __init__(self, img_size:int, patch_size:int, in_channels=3, embed_dim=128):
+  def __init__(self, img_size: int, patch_size: int, in_channels=3, embed_dim=128):
     super().__init__()
 
     self.img_size = img_size
@@ -342,7 +339,7 @@ class PatchEmbedding(torch.nn.Module):
     # Linear projection of flattened patches to the embedding dimension
     self.proj = torch.nn.Linear(self.patch_dim, embed_dim)
 
-  def forward(self, x:torch.Tensor):
+  def forward(self, x: torch.Tensor):
     """
     Forward pass for patch embedding.
 
@@ -364,8 +361,8 @@ class PatchEmbedding(torch.nn.Module):
     # step. Once the patches are flattened, embed them into latent vectors     #
     # using the projection layer.                                              #
     ############################################################################
+    # (N, C, H/PS, PS, W/PS, PS)
     patched = x.view(N, C, H // self.patch_size, self.patch_size,
-                     # (N, C, H/PS, PS, W/PS, PS)
                      W // self.patch_size, self.patch_size)
     patched = patched.permute(0, 2, 4, 1, 3, 5)  # (N, H/PS, W/PS, C, PS, PS)
     patched = patched.reshape(N, self.num_patches, C, self.patch_size, self.patch_size).reshape(
@@ -402,7 +399,7 @@ class TransformerEncoderLayer(torch.nn.Module):
     self.dropout_self = torch.nn.Dropout(dropout)
     self.dropout_ffn = torch.nn.Dropout(dropout)
 
-  def forward(self, src:torch.Tensor, src_mask=torch.Tensor | None):
+  def forward(self, src: torch.Tensor, src_mask=torch.Tensor | None):
     """
     Pass the inputs (and mask) through the encoder layer.
 

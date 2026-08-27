@@ -249,17 +249,19 @@ class VisionTransformer(nn.Module):
     #    You may find torch.mean useful.                                      #
     # 5. Feed it through a linear layer to produce class logits.              #
     ############################################################################
-    patches: torch.Tensor = self.patch_embed(
-      x)               # (N, num_patches, embed_dim)
-    positioned: torch.Tensor = self.positional_encoding(
-      patches)  # (N, num_patches, embed_dim)
-    encoded: torch.Tensor = self.transformer(
-      positioned)      # (N, num_patches, embed_dim)
+    # (N, num_patches, embed_dim)
+    patches: torch.Tensor = self.patch_embed(x)
+    # (N, num_patches, embed_dim)
+    positioned: torch.Tensor = self.positional_encoding(patches)
+    # (N, num_patches, embed_dim)
+    encoded: torch.Tensor = self.transformer(positioned)
 
     # average pool across the sequence dimension
-    pooled: torch.Tensor = torch.mean(encoded, dim=1)         # (N, embed_dim)
+    # (N, embed_dim)
+    pooled: torch.Tensor = torch.mean(encoded, dim=1)
 
-    logits: torch.Tensor = self.head(pooled)                  # (N, num_classes)
+    # (N, num_classes)
+    logits: torch.Tensor = self.head(pooled)
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################

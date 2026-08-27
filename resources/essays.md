@@ -8,3 +8,5 @@ Documents used in this course. In order to reduce the size of the repository and
 - [A Simple Framework for Contrastive Learning of Visual Representations](https://arxiv.org/pdf/2002.05709v3)
 - [Denoising Diffusion Probabilistic Models](https://arxiv.org/pdf/2006.11239v2)
 - [Classifier-Free Diffusion Guidance](https://arxiv.org/pdf/2207.12598v1)
+- [Hinton, G. Lecture 6a, Overview of mini-batch gradient descent](https://papers.baulab.info/papers/also/Tieleman-2012.pdf) _(This is for RMSProp. I believe I downloaded it from UofT's website, but I can't find the link now.)_
+- [Dropout: A Simple Way to Prevent Neural Networks from Overfitting](https://cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf) _<- the link seems to be invalid now, use this one from_ [dl.acm](https://dl.acm.org/doi/10.5555/2627435.2670313)

@@ -6,7 +6,7 @@ imagenet*
 coco_caption*
 **/im2col_cython.*
 
-resources/[0-9]*.pdf
+resources/*.pdf
 
 pretrained_model/
 **/datasets/
